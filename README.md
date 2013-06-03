@@ -9,6 +9,10 @@ An HBase client that (hopefully) doesn't suck
 3.  asynchronous
 4.  lazy
 
+## Progress
+
+Not ready
+
 ## License
 
 Copyright © 2013 Dan Burkert

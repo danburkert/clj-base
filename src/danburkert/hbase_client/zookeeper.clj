@@ -1,5 +1,6 @@
 (ns danburkert.hbase-client.zookeeper
-  (:require [zookeeper :as zk]
+  (:require [danburkert.hbase-client.protobuf :as pb]
+            [zookeeper :as zk]
             [clojure.string :as s])
   (:import [java.nio ByteBuffer]
            [java.util Arrays]))
@@ -19,19 +20,27 @@
           offset (+ 5 (.getInt bb 1))] ;; magic byte + 4 byte int + metadata-length
       (Arrays/copyOfRange data offset (alength data)))))
 
-(defn- parse-root-region
-  "Parse data from the root region server zNode and returns a 3-tuple of
-   [hostname, port, startcode]"
+(defn parse-region-server
+  "Parse data from a zNode containing region server information.  Returns a map
+   containing :hostName, :port and :startCode"
   [^bytes data]
-  (s/split (String. (strip-metadata data))
-           root-region-delimiter))
+  (-> data
+      strip-metadata
+      (pb/deser-server-name)))
 
 (comment
 
-(def client (zk/connect "localhost:2181"))
+  (def client (zk/connect "localhost:2181"))
 
-(strip-metadata (:data (zk/data client "/hbase/root-region-server")))
+  (zk/children client "/hbase")
 
-(parse-root-region (:data (zk/data client "/hbase/root-region-server")))
+  (use 'criterium.core)
+
+  (let [data (:data (zk/data client "/hbase/master"))]
+    (quick-bench (:hostName (parse-region-server data))))
+
+  (parse-region-server (:data (zk/data client "/hbase/master")))
+
+  (parse-region-server (:data (zk/data client "/hbase/meta-region-server")))
 
   )
