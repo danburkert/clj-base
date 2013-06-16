@@ -26,7 +26,7 @@
   [^bytes data]
   (-> data
       strip-metadata
-      (pb/deser-server-name)))
+      (pb/server-name)))
 
 (comment
 

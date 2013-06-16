@@ -1,20 +1,23 @@
 (ns danburkert.hbase-client.protobuf
-  (:require [protobuf.core :as pb])
+  (:require [flatland.protobuf.core :as pb])
   (:import [java.util Arrays]
            [java.io ByteArrayOutputStream]
            [java.nio.charset Charset]
-           [org.apache.hadoop.hbase.protobuf.generated HBaseProtos$ServerName]))
+           [org.apache.hadoop.hbase.protobuf.generated
+            HBaseProtos$ServerName
+            ClientProtos$Get]))
 
 (def ^:private ^"[B" magic (.getBytes "PBUF" (Charset/forName "UTF-8")))
 
 (def ServerName (pb/protodef HBaseProtos$ServerName))
+(def Get (pb/protodef ClientProtos$Get))
 
 (defn- strip-magic
   "Strips magic bytes from array"
   [^bytes bs] (Arrays/copyOfRange bs 6 (alength bs)))
 
-(defn deser-server-name
-  "Deserialize a ServerName message."
+(defn server-name
+  "Deserialize a server-name message from a byte array."
   [^bytes bs]
   (->> bs
        strip-magic
