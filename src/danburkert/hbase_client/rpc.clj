@@ -1,54 +1,48 @@
 (ns danburkert.hbase-client.rpc
-  (:require [flatland.protobuf.core :as pb]
-            [clojure.java.io :as io])
-  (:import [org.apache.hadoop.hbase.protobuf.generated ClientProtos$Get]
-           [org.apache.hadoop.hbase.protobuf.generated RPCProtos$ConnectionHeader RPCProtos$UserInformation]
-           [com.google.protobuf ByteString CodedOutputStream]
-           [flatland.protobuf PersistentProtocolBufferMap]
-           [java.io ByteArrayOutputStream DataOutputStream]))
+  (:require [danburkert.hbase-client.messages :as msg]
+            [byte-streams :as bs]
+            [lamina.core :as lam]
+            [aleph.tcp :as tcp])
+  (:import [java.io ByteArrayOutputStream DataOutputStream]
+           [java.nio ByteBuffer]))
 
-(def ConnectionHeader (pb/protodef RPCProtos$ConnectionHeader))
-(def UserInformation (pb/protodef RPCProtos$UserInformation))
-
-(defn connection-preamble []
-  (let [^ByteArrayOutputStream os (doto (ByteArrayOutputStream. 6)
-                                    (.write (.getBytes "HBas"))
-                                    (.write (byte 0))
-                                    (.write (byte 80)))]
-    (.toByteArray os)))
+(def ^:private connection-preamble
+  (bs/to-byte-array (doto (ByteBuffer/allocate 6)
+                      (.put (.getBytes "HBas"))
+                      (.put (byte 0))
+                      (.put (byte 80))
+                      .flip)))
 
 (defn connection-header []
-  (let [^PersistentProtocolBufferMap
-        userInfo (pb/protobuf UserInformation :effectiveUser "dburkert")
-        connectionHeader (pb/protobuf ConnectionHeader {:cellBlockCodecClass
-                                                        "org.apache.hadoop.hbase.codec.KeyValueCodec"
-                                                        :serviceName "ClientService"
-                                                        :userInfo userInfo})
-        bs (pb/protobuf-dump connectionHeader)
-        len (alength bs)
-        os (ByteArrayOutputStream. (+ len 4))]
-    (.writeInt (DataOutputStream. os) (int (alength bs)))
-    (.write os bs)
-    (.toByteArray os)))
+  (let [user-info (msg/create msg/UserInformation :effectiveUser "dburkert")
+        connection-header (msg/create msg/ConnectionHeader {:cellBlockCodecClass
+                                                            "org.apache.hadoop.hbase.codec.KeyValueCodec"
+                                                            :serviceName "ClientService"
+                                                            :userInfo user-info})
+        msg-bytes (bs/to-byte-array connection-header)
+        len (.length msg-bytes)]
+    (bs/to-byte-array (doto (ByteBuffer/allocate (len + 4))
+                        (.putInt len)
+                        (.put msg-bytes)
+                        .flip))))
+
+(defn connect! [server]
+  (doto (lam/wait-for-result
+          (tcp/tcp-client server))
+    (lam/enqueue connection-preamble)
+    (lam/enqueue (connection-header))))
 
 (comment
 
-  (import org.apache.hadoop.hbase.util.Bytes)
-  (Bytes/toString (connection-header))
+  (bs/print-bytes (connection-header))
 
   (use 'lamina.core 'aleph.tcp 'gloss.core)
 
-  (def ch
-    (wait-for-result
-      (tcp-client {:host "localhost",
-                   :port 60020})))
-
-  (do
-  (enqueue ch (connection-preamble))
-  (enqueue ch (connection-header)))
-
+  (def ch (connect! {:host "localhost"
+                     :port 60020 }))
 
   (wait-for-message ch)
 
   (close ch)
+
   )
