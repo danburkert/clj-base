@@ -8,69 +8,46 @@
 (def ^:private magic (unchecked-byte 0xFF))
 
 (defn- strip-metadata
-  "Strips the metadata from the data of a zNode.  Metadata is written by the
-   org.apache.hbase.zookeeper.RecoverableZooKeeper class."
+  "Strips metadata and magic bytes from the data of a zNode.  The data is
+   prefixed with a single magic byte, 0xFF, followed by a serialized int
+   that holds the length of the subsequent metadata.  The magic bytes \"PBUF\"
+   follow the metadata, and then the serialized message."
   ^ByteBuffer [^ByteBuffer data]
-  (if (or (nil? data)
-          (zero? (.capacity data))
-          (not= (.get data 0) magic))
-    data
-    (let [pos (+ (.position data) 5 (.getInt data 1))] ;; current position + magic byte + 4 byte int + metadata-length
-      (.position data pos))))
+  (let [pos (.position data)]
+    (assert (= (.get data pos) magic) "zNode contains unrecognized data format.")
+    (.position data (+ pos 9 (.getInt data (inc pos)))))) ;; 9 = 0xFF + int + "PBUF"
 
-(defn- strip-magic
-  "Strips magic bytes (\"PBUF\") from data of a zNode."
-  ^ByteBuffer [^ByteBuffer data]
-  (.position data (+ (.position data) 4)))
-
-(defn- parse-server
-  "Parse data from a zNode containing server information.  Returns a map
-   containing :host, :port, and :start-code"
-  [data]
-  (let [server-name (-> data
-                        bs/to-byte-buffer
-                        strip-metadata
-                        strip-magic
-                        (bs/convert msg/ServerName))]
-    {:host (:hostName server-name)
-     :port (:port server-name)
-     :start-code (:startCode server-name)}))
+(defn- zNode-message
+  "Fetch data from a zNode and return a ByteBuffer containing the message
+   contained in the zNode."
+  [zk zNode]
+  (-> (:data (zk/data zk zNode))
+      bs/to-byte-buffer
+      strip-metadata))
 
 (defn connect!
   "Connect to a zookeeper quorum and return the connection.  Takes a map of
-   options with required keys :connection, and optional keys :timeout-msec
+   options with required key :connection and optional keys :timeout-msec
    and :watcher."
   [opts]
   (apply zk/connect (:connection opts) (flatten (seq opts))))
 
-(defn master-server
-  "Takes a zookeeper connection and returns a map including the :host, :port,
-   and :start-code of the master server."
+(defn master
+  "Takes a zookeeper connection and returns the Master message."
   [zk]
-  (parse-server (:data (zk/data zk "/hbase/master"))))
+  (bs/convert (zNode-message zk "/hbase/master") msg/Master))
 
 (defn meta-region-server
-  "Takes a zookeeper connection and returns a map including the :host, :port,
-   and :start-code of the meta region server."
+  "Takes a zookeeper connection and returns the MetaRegionServer message."
   [zk]
-  (parse-server (:data (zk/data zk "/hbase/meta-region-server"))))
+  (bs/convert (zNode-message zk "/hbase/meta-region-server") msg/MetaRegionServer))
 
 (comment
 
-  (def client (connect! {:connection "localhost"}))
+  (def zk (connect! {:connection "localhost"}))
 
-  (zk/children client "/hbase")
+  (zk/children zk "/hbase")
 
-  (bs/print-bytes (:data (zk/data client "/hbase/master")))
-  (alength (:data (zk/data client "/hbase/master")))
-  (bs/print-bytes (:data (zk/data client "/hbase/meta-region-server")))
-
-  (master-server client)
-  (meta-region-server client)
-
-  (master-server client)
-  (meta-region-server client)
-
-
-
+  (master zk)
+  (meta-region-server zk)
   )

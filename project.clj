@@ -3,7 +3,7 @@
   :url "http://www.github.com/danburkert/hbase-client"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
-  :dependencies [[org.apache.hbase/hbase-protocol "0.95.1"]
+  :dependencies [[org.apache.hbase/hbase-protocol "0.97.0-SNAPSHOT"]
                  [org.clojure/clojure "1.5.1"]
                  [org.flatland/protobuf "0.7.2"]
                  [zookeeper-clj "0.9.1"]

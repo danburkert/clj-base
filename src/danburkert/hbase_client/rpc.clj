@@ -20,8 +20,8 @@
                                                             :serviceName "ClientService"
                                                             :userInfo user-info})
         msg-bytes (bs/to-byte-array connection-header)
-        len (.length msg-bytes)]
-    (bs/to-byte-array (doto (ByteBuffer/allocate (len + 4))
+        len (alength msg-bytes)]
+    (bs/to-byte-array (doto (ByteBuffer/allocate (+ len 4))
                         (.putInt len)
                         (.put msg-bytes)
                         .flip))))
@@ -32,14 +32,19 @@
     (lam/enqueue connection-preamble)
     (lam/enqueue (connection-header))))
 
+
 (comment
 
-  (bs/print-bytes (connection-header))
 
   (use 'lamina.core 'aleph.tcp 'gloss.core)
 
+  (bs/print-bytes (connection-header))
   (def ch (connect! {:host "localhost"
                      :port 60020 }))
+
+  (lam/wait-for-result
+    (tcp/tcp-client {:host "localhost"
+                     :port 60020}))
 
   (wait-for-message ch)
 

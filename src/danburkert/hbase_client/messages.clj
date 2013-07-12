@@ -35,6 +35,9 @@
          [input-stream#]
          (pb/protobuf-seq ~name input-stream#)))))
 
+(def-message Master ZooKeeperProtos$Master)
+(def-message MetaRegionServer ZooKeeperProtos$MetaRegionServer)
+
 (def-message ConnectionHeader RPCProtos$ConnectionHeader)
 (def-message ServerName HBaseProtos$ServerName)
 (def-message UserInformation RPCProtos$UserInformation)
@@ -54,6 +57,8 @@
 
 (comment
 
+  (use 'criterium.core)
+
   (def my-msg (create UserInformation :effectiveUser "dburkert"))
 
   (:effectiveUser my-msg)
@@ -62,6 +67,17 @@
 
   (:effectiveUser (bs/convert (bs/to-byte-array my-msg) UserInformation))
   (:effectiveUser (bs/convert (bs/to-byte-buffer my-msg) UserInformation))
+
+  (quick-bench (bs/convert (bs/to-byte-array my-msg) UserInformation)) ;;168 micro seconds
+  (quick-bench (bs/convert (bs/to-byte-buffer my-msg) UserInformation))
+
+  (quick-bench (bs/to-byte-array my-msg)) ;; 80 micro seconds
+  (quick-bench (bs/to-byte-buffer my-msg)) ;; 98 micro seconds
+  (quick-bench (bs/to-input-stream my-msg)) ;; 108 micro seconds
+  (quick-bench (bs/to-readable-channel my-msg)) ;; 154 micro seconds
+
+  (let [msg (bs/to-byte-array my-msg)] (quick-bench (bs/convert msg UserInformation))) ;; 82 micro seconds
+  (let [msg (bs/to-byte-buffer my-msg)] (quick-bench (bs/convert msg UserInformation))) ;; 88 micro seconds
 
   (bs/conversion-path ByteBuffer UserInformation)
   (bs/conversion-path InputStream UserInformation)
