@@ -9,5 +9,5 @@
                  [zookeeper-clj "0.9.1"]
                  [aleph "0.3.0-rc2"]
                  [lamina "0.5.0-rc3"]
-                 [byte-streams "0.1.1-SNAPSHOT"]]
+                 [byte-streams "0.1.2-SNAPSHOT"]]
   :global-vars  {*warn-on-reflection* true})

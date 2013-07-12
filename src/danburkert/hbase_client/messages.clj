@@ -47,7 +47,7 @@
   (pb/protobuf-dump msg))
 
 (bs/def-transfer [PersistentProtocolBufferMap OutputStream]
-  [msg os _]
+  [msg os]
   (pb/protobuf-write os msg))
 
 (def ^{:doc
@@ -59,14 +59,12 @@
 
   (use 'criterium.core)
 
-  (def my-msg (create UserInformation :effectiveUser "dburkert"))
-
-  (:effectiveUser my-msg)
+  (def my-msg (create UserInformation :effective-user "dburkert"))
 
   (bs/print-bytes (bs/to-byte-array my-msg))
 
-  (:effectiveUser (bs/convert (bs/to-byte-array my-msg) UserInformation))
-  (:effectiveUser (bs/convert (bs/to-byte-buffer my-msg) UserInformation))
+  (bs/convert (bs/to-byte-array my-msg) UserInformation)
+  (bs/convert (bs/to-byte-buffer my-msg) UserInformation)
 
   (quick-bench (bs/convert (bs/to-byte-array my-msg) UserInformation)) ;;168 micro seconds
   (quick-bench (bs/convert (bs/to-byte-buffer my-msg) UserInformation))

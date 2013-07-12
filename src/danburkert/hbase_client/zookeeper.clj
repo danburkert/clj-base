@@ -48,6 +48,10 @@
 
   (zk/children zk "/hbase")
 
+  (bs/print-bytes (:data (zk/data zk "/hbase/meta-region-server")))
+  (bs/print-bytes (:data (zk/data zk "/hbase/master")))
+
   (master zk)
   (meta-region-server zk)
+
   )
