@@ -5,7 +5,7 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.apache.hbase/hbase-protocol "0.97.0-SNAPSHOT"]
                  [org.clojure/clojure "1.5.1"]
-                 [org.flatland/protobuf "0.7.2"]
+                 [org.flatland/protobuf "0.7.3-SNAPSHOT"]
                  [zookeeper-clj "0.9.1"]
                  [aleph "0.3.0-rc2"]
                  [lamina "0.5.0-rc3"]

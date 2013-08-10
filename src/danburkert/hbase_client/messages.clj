@@ -35,25 +35,38 @@
          [input-stream#]
          (pb/protobuf-seq ~name input-stream#)))))
 
+;; Zookeeper messages
 (def-message Master ZooKeeperProtos$Master)
 (def-message MetaRegionServer ZooKeeperProtos$MetaRegionServer)
-
-(def-message ConnectionHeader RPCProtos$ConnectionHeader)
 (def-message ServerName HBaseProtos$ServerName)
+
+;; RPC messages
+(def-message ConnectionHeader RPCProtos$ConnectionHeader)
 (def-message UserInformation RPCProtos$UserInformation)
+(def-message RequestHeader RPCProtos$RequestHeader)
+(def-message ResponseHeader RPCProtos$ResponseHeader)
+
+;; Client messages
 
 (bs/def-conversion [PersistentProtocolBufferMap byte-array]
   [msg]
   (pb/protobuf-dump msg))
 
 (bs/def-transfer [PersistentProtocolBufferMap OutputStream]
-  [msg os]
-  (pb/protobuf-write os msg))
+  [msg os {:keys [delimited] :or {delimited true}}]
+  (if delimited
+    (.writeDelimitedTo msg os)
+    (.writeTo msg os)))
 
 (def ^{:doc
 "([type] [type m] [type k v & kvs])
     Construct a message of the given type."}
   create pb/protobuf)
+
+(def ^{:doc
+"([msg]
+    Returns the serialized size of the message."}
+  serialized-size pb/serialized-size)
 
 (comment
 
@@ -81,4 +94,8 @@
   (bs/conversion-path InputStream UserInformation)
   (bs/conversion-path String UserInformation)
 
+  (to-byte-array
+    (doto (ByteBuffer/allocate 8)
+      (.putLong 13)
+      .flip))
   )
