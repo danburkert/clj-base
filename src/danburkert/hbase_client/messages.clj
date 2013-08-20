@@ -1,7 +1,6 @@
 (ns danburkert.hbase-client.messages
   (:require [flatland.protobuf.core :as pb]
-            [byte-streams :as bs]
-            [clojure.java.io :as io])
+            [byte-streams :as bs])
   (:import [java.io InputStream OutputStream]
            [java.nio ByteBuffer]
            [flatland.protobuf PersistentProtocolBufferMap]
@@ -21,17 +20,18 @@
          (PersistentProtocolBufferMap/create ~name ary#))
        (bs/def-conversion [ByteBuffer ~name]
          [^ByteBuffer buf#]
-         (let [input# (CodedInputStream/newInstance (.array buf#)
-                                                    (.position buf#)
-                                                    (.remaining buf#))]
-           (PersistentProtocolBufferMap/parseFrom ~name input#)))
-       (bs/def-conversion [~'InputStream ~name]
+         (if (.hasArray buf#)
+           (let [input# (CodedInputStream/newInstance (.array buf#)
+                                                      (.position buf#)
+                                                      (.remaining buf#))]
+             (PersistentProtocolBufferMap/parseFrom ~name input#))
+           (bs/convert (bs/to-byte-array buf#) ~name)))
+       (bs/def-conversion [InputStream ~name]
          [input-stream# {:keys [delimited#] :or {delimited# true}}]
          (if delimited#
            (PersistentProtocolBufferMap/parseDelimitedFrom ~name input-stream#)
-           (PersistentProtocolBufferMap/parseFrom ~name (CodedInputStream/newInstance input-stream#)))
-         (pb/protobuf-load-stream ~name input-stream#))
-       (bs/def-conversion [~'InputStream (bs/seq-of ~name)]
+           (PersistentProtocolBufferMap/parseFrom ~name (CodedInputStream/newInstance input-stream#))))
+       (bs/def-conversion [InputStream (bs/seq-of ~name)]
          [input-stream#]
          (pb/protobuf-seq ~name input-stream#)))))
 
@@ -45,6 +45,10 @@
 (def-message UserInformation RPCProtos$UserInformation)
 (def-message RequestHeader RPCProtos$RequestHeader)
 (def-message ResponseHeader RPCProtos$ResponseHeader)
+
+;; Master messages
+(def-message IsMasterRunningRequest MasterProtos$IsMasterRunningRequest)
+(def-message IsMasterRunningResponse MasterProtos$IsMasterRunningResponse)
 
 ;; Client messages
 
@@ -68,7 +72,21 @@
     Returns the serialized size of the message."}
   serialized-size pb/serialized-size)
 
+(def ^{:doc
+"([msg]
+    Returns the delimited size of the message."}
+  delimited-size pb/delimited-size)
+
 (comment
+
+  (let [out (java.io.ByteArrayOutputStream.)
+        msg (create IsMasterRunningResponse {:is-master-running true})]
+    (bs/transfer msg out)
+    (bs/print-bytes (.toByteArray out))
+    (bs/convert (.toByteArray out) IsMasterRunningResponse))
+
+  (bs/print-bytes
+    (bs/to-input-stream (create IsMasterRunningResponse {:is-master-running true})))
 
   (use 'criterium.core)
 
@@ -94,7 +112,7 @@
   (bs/conversion-path InputStream UserInformation)
   (bs/conversion-path String UserInformation)
 
-  (to-byte-array
+  (bs/to-byte-array
     (doto (ByteBuffer/allocate 8)
       (.putLong 13)
       .flip))
