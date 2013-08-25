@@ -2,24 +2,24 @@
   (:require [danburkert.hbase-client.messages :as msg]
             [zookeeper :as zk]
             [clojure.tools.logging :as log])
-  (:import [java.nio Buffer ByteBuffer]))
+  (:import [java.io ByteArrayInputStream]
+           [java.nio Buffer ByteBuffer]))
 
 (def ^:private magic (unchecked-byte 0xFF))
 
 (defn- strip-metadata
-  "Returns a ByteBuffer wrapping the passed in data with the position offset to
-   the index of the message.  The data is prefixed with a single magic byte,
+  "Returns an input stream wrapping the passed in data with the position offset
+   to the index of the message.  The data is prefixed with a single magic byte,
    0xFF, followed by a serialized int that holds the length of the subsequent
    metadata.  The magic bytes \"PBUF\" follow the metadata, and finally the
    serialized message."
   [^bytes data]
   (assert (= (aget data 0) magic) "zNode contains unrecognized data format")
-  (let [^ByteBuffer buf (ByteBuffer/wrap data)
-        offset (.getInt buf 1)]
-    (.position buf (+ 9 offset))
-    buf)) ;; 9 = 0xFF + int + "PBUF"
+  (let [offset (+ 9 (-> data ByteBuffer/wrap (.getInt 1))) ;; 9 = 0xFF + int + "PBUF"
+        length (- (alength data) offset)]
+    (ByteArrayInputStream. data offset length)))
 
-(defn- zNode-message
+(defn- zNode-message-stream
   "Fetch data from a zNode and return a ByteBuffer containing the serialized
    message contained in the zNode."
   [zk zNode]
@@ -35,12 +35,12 @@
 (defn master
   "Takes a zookeeper connection and returns the Master message."
   [zk]
-  (msg/read msg/Master (zNode-message zk "/hbase/master")))
+  (msg/read! msg/Master (zNode-message-stream zk "/hbase/master")))
 
 (defn meta-region-server
   "Takes a zookeeper connection and returns the MetaRegionServer message."
   [zk]
-  (msg/read msg/MetaRegionServer (zNode-message zk "/hbase/meta-region-server")))
+  (msg/read! msg/MetaRegionServer (zNode-message-stream zk "/hbase/meta-region-server")))
 
 (comment
 

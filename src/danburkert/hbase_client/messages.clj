@@ -44,7 +44,7 @@
 
 (defn write!
   "Serialize the message to the outputstream without a varint delimiter"
-  [^PersistentProtocolBufferMap msg os]
+  [^PersistentProtocolBufferMap msg ^OutputStream os]
   (.writeTo msg os))
 
 (defn write-delimited!

@@ -68,7 +68,7 @@
                (connect host-name port)
                sync
                channel)
-        buf (.. ch alloc (buffer (msg/serialized-size connection-header)))]
+        buf (.. ch alloc (buffer (msg/size connection-header)))]
     (msg/write! connection-header (ByteBufOutputStream. buf))
     (.writeAndFlush ch buf)
     ch))
