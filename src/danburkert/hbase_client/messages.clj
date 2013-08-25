@@ -1,39 +1,14 @@
 (ns danburkert.hbase-client.messages
-  (:require [flatland.protobuf.core :as pb]
-            [byte-streams :as bs])
-  (:import [java.io InputStream OutputStream]
-           [java.nio ByteBuffer]
-           [flatland.protobuf PersistentProtocolBufferMap]
-           [com.google.protobuf CodedInputStream]))
-
-(def ^:private byte-array (class (clojure.core/byte-array 0)))
+  (:require [flatland.protobuf.core :as pb])
+  (:import [flatland.protobuf PersistentProtocolBufferMap PersistentProtocolBufferMap$Def]
+           [java.io InputStream OutputStream])
+  (:refer-clojure :exclude [read]))
 
 (defmacro def-message
-  "Defines a message type.  Sets up the protobuf definition and necessary byte
-   conversion paths."
+  "Declare a protobuf message type"
   [name class]
   (let [full-class (symbol (str "org.apache.hadoop.hbase.protobuf.generated." class))]
-    `(do
-       (def ~name (pb/protodef ~full-class))
-       (bs/def-conversion [byte-array ~name]
-         [ary#]
-         (PersistentProtocolBufferMap/create ~name ary#))
-       (bs/def-conversion [ByteBuffer ~name]
-         [^ByteBuffer buf#]
-         (if (.hasArray buf#)
-           (let [input# (CodedInputStream/newInstance (.array buf#)
-                                                      (.position buf#)
-                                                      (.remaining buf#))]
-             (PersistentProtocolBufferMap/parseFrom ~name input#))
-           (bs/convert (bs/to-byte-array buf#) ~name)))
-       (bs/def-conversion [InputStream ~name]
-         [input-stream# {:keys [delimited#] :or {delimited# true}}]
-         (if delimited#
-           (PersistentProtocolBufferMap/parseDelimitedFrom ~name input-stream#)
-           (PersistentProtocolBufferMap/parseFrom ~name (CodedInputStream/newInstance input-stream#))))
-       (bs/def-conversion [InputStream (bs/seq-of ~name)]
-         [input-stream#]
-         (pb/protobuf-seq ~name input-stream#)))))
+    `(def ~name (pb/protodef ~full-class))))
 
 ;; Zookeeper messages
 (def-message Master ZooKeeperProtos$Master)
@@ -52,68 +27,54 @@
 
 ;; Client messages
 
-(bs/def-conversion [PersistentProtocolBufferMap byte-array]
-  [msg]
-  (pb/protobuf-dump msg))
+(def create
+  "([type] [type m] [type k v & kvs])
+    Construct a message of the given type."
+  pb/protobuf)
 
-(bs/def-transfer [PersistentProtocolBufferMap OutputStream]
-  [msg os {:keys [delimited] :or {delimited true}}]
-  (if delimited
-    (.writeDelimitedTo msg os)
-    (.writeTo msg os)))
+(def size
+  "([msg])
+    Returns the serialized size of the message"
+  pb/serialized-size)
 
-(def ^{:doc
-"([type] [type m] [type k v & kvs])
-    Construct a message of the given type."}
-  create pb/protobuf)
+(def delimited-size
+  "([msg])
+    Returns the delimited size of the message."
+  pb/delimited-size)
 
-(def ^{:doc
-"([msg]
-    Returns the serialized size of the message."}
-  serialized-size pb/serialized-size)
+(defn write!
+  "Serialize the message to the outputstream without a varint delimiter"
+  [^PersistentProtocolBufferMap msg os]
+  (.writeTo msg os))
 
-(def ^{:doc
-"([msg]
-    Returns the delimited size of the message."}
-  delimited-size pb/delimited-size)
+(defn write-delimited!
+  "Serialize the message to the outputstream with a varint delimiter"
+  [^PersistentProtocolBufferMap msg os]
+  (.writeDelimitedTo msg os))
+
+(defn read!
+  "Read a non-delimited message of the given type from the input stream"
+  [type is]
+  (PersistentProtocolBufferMap/parseFrom ^PersistentProtocolBufferMap$Def type ^InputStream is))
+
+(defn read-delimited!
+  "Read a delimited message of the given type from the input stream"
+  [type is]
+  (PersistentProtocolBufferMap/parseDelimitedFrom type is))
 
 (comment
 
-  (let [out (java.io.ByteArrayOutputStream.)
-        msg (create IsMasterRunningResponse {:is-master-running true})]
-    (bs/transfer msg out)
-    (bs/print-bytes (.toByteArray out))
-    (bs/convert (.toByteArray out) IsMasterRunningResponse))
+  (type (java.nio.ByteBuffer/wrap (byte-array 1)))
 
-  (bs/print-bytes
-    (bs/to-input-stream (create IsMasterRunningResponse {:is-master-running true})))
+  (def msg (create RequestHeader {:call-id 0
+                                  :method-name "MethodName"
+                                  :request-param false}))
 
-  (use 'criterium.core)
+  (def serialized-bytes
+    (let [out (java.io.ByteArrayOutputStream.)]
+      (write! msg out)
+      (.toByteArray out)))
 
-  (def my-msg (create UserInformation :effective-user "dburkert"))
+  (read serialized-bytes RequestHeader)
 
-  (bs/print-bytes (bs/to-byte-array my-msg))
-
-  (bs/convert (bs/to-byte-array my-msg) UserInformation)
-  (bs/convert (bs/to-byte-buffer my-msg) UserInformation)
-
-  (quick-bench (bs/convert (bs/to-byte-array my-msg) UserInformation)) ;;168 micro seconds
-  (quick-bench (bs/convert (bs/to-byte-buffer my-msg) UserInformation))
-
-  (quick-bench (bs/to-byte-array my-msg)) ;; 80 micro seconds
-  (quick-bench (bs/to-byte-buffer my-msg)) ;; 98 micro seconds
-  (quick-bench (bs/to-input-stream my-msg)) ;; 108 micro seconds
-  (quick-bench (bs/to-readable-channel my-msg)) ;; 154 micro seconds
-
-  (let [msg (bs/to-byte-array my-msg)] (quick-bench (bs/convert msg UserInformation))) ;; 82 micro seconds
-  (let [msg (bs/to-byte-buffer my-msg)] (quick-bench (bs/convert msg UserInformation))) ;; 88 micro seconds
-
-  (bs/conversion-path ByteBuffer UserInformation)
-  (bs/conversion-path InputStream UserInformation)
-  (bs/conversion-path String UserInformation)
-
-  (bs/to-byte-array
-    (doto (ByteBuffer/allocate 8)
-      (.putLong 13)
-      .flip))
   )
