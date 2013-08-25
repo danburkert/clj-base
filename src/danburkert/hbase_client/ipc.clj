@@ -73,16 +73,20 @@
     (.writeAndFlush ch buf)
     ch))
 
-(comment
+(defn connection-header
+  "Create a ConnectionHeader message for a given service"
+  [service-name]
+  (msg/create msg/ConnectionHeader
+              {:cell-block-codec-class "org.apache.hadoop.hbase.codec.KeyValueCodec"
+               :service-name service-name
+               :user-info {:effective-user (System/getProperty "user.name")}}))
 
-  (def connection-header
-    (msg/create msg/ConnectionHeader {:cell-block-codec-class "org.apache.hadoop.hbase.codec.KeyValueCodec"
-                                      :service-name "ClientService"
-                                      :user-info (msg/create msg/UserInformation :effective-user (System/getProperty "user.name"))}))
+(comment
 
 
   (def b (create-bootstrap))
-  (def c (connect! b {:host-name "192.168.1.5" :port 60020} connection-header))
+  (def c (connect! b {:host-name "192.168.1.3" :port 60020}
+                   (connection-header "ClientService")))
 
   (.isOpen c)
   (.isActive c)

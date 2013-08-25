@@ -25,33 +25,34 @@
   [zk zNode]
   (strip-metadata (:data (zk/data zk zNode))))
 
-(defn connect!
-  "Connect to a zookeeper quorum and return the connection.  Takes a map of
-   options with required key :connection and optional keys :timeout-msec
-   and :watcher."
+(defprotocol ZookeeperClient
+  (master [this] "Reads the current Master message from Zookeeper")
+  (meta-region-server [this] "Reads the current MetaRegionServer message from Zookeeper"))
+
+(defrecord Zookeeper [client opts]
+  ZookeeperClient
+  (master [this]
+    (msg/read! msg/Master (zNode-message-stream
+                            client (str (:znode-parent opts) "/master"))))
+  (meta-region-server [this]
+    (msg/read! msg/MetaRegionServer
+               (zNode-message-stream
+                 client (str (:znode-parent opts) "/meta-region-server")))))
+
+(def ^:private default-opts
+  {:host "localhost"
+   :port 2181
+   :znode-parent "/hbase"})
+
+(defn zookeeper
+  "Creates a ZookeeperClient connected to the specified quorum"
   [opts]
-  (apply zk/connect (:connection opts) (flatten (seq opts))))
-
-(defn master
-  "Takes a zookeeper connection and returns the Master message."
-  [zk]
-  (msg/read! msg/Master (zNode-message-stream zk "/hbase/master")))
-
-(defn meta-region-server
-  "Takes a zookeeper connection and returns the MetaRegionServer message."
-  [zk]
-  (msg/read! msg/MetaRegionServer (zNode-message-stream zk "/hbase/meta-region-server")))
+  (let [{:keys [host port] :as opts} (merge default-opts opts)
+        conn (zk/connect (str host ":" port))]
+    (->Zookeeper conn opts)))
 
 (comment
-
-  (def zk (connect! {:connection "localhost"}))
-
-  (zk/children zk "/hbase")
-
-  (:data (zk/data zk "/hbase/meta-region-server"))
-  (:data (zk/data zk "/hbase/master"))
-
+  (def zk (zookeeper {}))
   (master zk)
   (meta-region-server zk)
-
   )
