@@ -1,5 +1,6 @@
 (ns danburkert.hbase-client.zookeeper
-  (:require [danburkert.hbase-client.messages :as msg]
+  (:require [danburkert.hbase-client :refer :all]
+            [danburkert.hbase-client.messages :as msg]
             [zookeeper :as zk]
             [clojure.tools.logging :as log])
   (:import [java.io ByteArrayInputStream]
@@ -25,19 +26,17 @@
   [zk zNode]
   (strip-metadata (:data (zk/data zk zNode))))
 
-(defprotocol ZookeeperClient
-  (master [this] "Reads the current Master message from Zookeeper")
-  (meta-region-server [this] "Reads the current MetaRegionServer message from Zookeeper"))
-
 (defrecord Zookeeper [client opts]
-  ZookeeperClient
+  ZookeeperService
   (master [this]
     (msg/read! msg/Master (zNode-message-stream
                             client (str (:znode-parent opts) "/master"))))
   (meta-region-server [this]
     (msg/read! msg/MetaRegionServer
                (zNode-message-stream
-                 client (str (:znode-parent opts) "/meta-region-server")))))
+                 client (str (:znode-parent opts) "/meta-region-server"))))
+  Closeable
+  (close [this] (zk/close client)))
 
 (def ^:private default-opts
   {:host "localhost"
@@ -45,7 +44,7 @@
    :znode-parent "/hbase"})
 
 (defn zookeeper
-  "Creates a ZookeeperClient connected to the specified quorum"
+  "Creates a ZookeeperService connected to the specified quorum"
   [opts]
   (let [{:keys [host port] :as opts} (merge default-opts opts)
         conn (zk/connect (str host ":" port))]
@@ -53,6 +52,10 @@
 
 (comment
   (def zk (zookeeper {}))
+  (pr zk)
   (master zk)
   (meta-region-server zk)
+  (close zk)
+
+  (zk/children (:client zk) "/hbase")
   )
