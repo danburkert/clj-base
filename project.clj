@@ -8,6 +8,8 @@
                  [io.netty/netty-all "4.0.7.Final"]
                  [org.flatland/protobuf "0.7.3-SNAPSHOT"]
                  [zookeeper-clj "0.9.1"]
-                 [org.clojure/tools.logging "0.2.6"]]
+                 [org.clojure/tools.logging "0.2.6"]
+                 [org.clojure/test.generative "0.5.0"]
+                 [org.clojure/data.generators "0.1.2"]]
   :java-source-paths ["java"]
   :global-vars  {*warn-on-reflection* true})
