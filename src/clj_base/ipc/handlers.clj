@@ -3,7 +3,7 @@
   (:require [clj-base.messages :as msg]
             [clojure.tools.logging :as log])
   (:import
-    [com.danburkert.hbase_client Netty]
+    [clj_base Netty]
     [io.netty.buffer ByteBuf ByteBufOutputStream ByteBufInputStream]
     [io.netty.channel ChannelInitializer ChannelHandlerContext ChannelInboundHandlerAdapter ChannelFutureListener]
     [io.netty.channel.socket SocketChannel]
