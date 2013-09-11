@@ -30,7 +30,7 @@
     (.. cf
         (addListener (handlers/connect-channel-on-success connection-header)))))
 
-(defn- weak-assoc
+(defn- assoc-if-absent
   "Takes a map, a key, and a delayed value.  Associates the key and value if
    the map does not contain the key."
   [m k v]
@@ -46,7 +46,7 @@
       (or (get @channel-agent key)
           (do
             (-> channel-agent
-                (send weak-assoc key ch)
+                (send assoc-if-absent key ch)
                 await)
             (get @channel-agent key)))))
   (await-channel [this host port service]
