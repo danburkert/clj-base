@@ -7,6 +7,10 @@ A functional HBase client
 1.  thread safe
 2.  asynchronous
 3.  lazy
+4.  functional data flow
+  - write requests in terms of map, reduce, and filter over a sorted set of cells
+  - transparently push as much to server side as possible
+  - clojure reducers?
 
 ## Progress
 
