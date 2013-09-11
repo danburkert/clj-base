@@ -1,13 +1,13 @@
-(ns danburkert.hbase-client.ipc.handlers
+(ns clj-base.ipc.handlers
   "Defines ChannelHandlers and callbacks for use with Channels"
-  (:require [danburkert.hbase-client.messages :as msg]
+  (:require [clj-base.messages :as msg]
             [clojure.tools.logging :as log])
   (:import
     [com.danburkert.hbase_client Netty]
     [io.netty.buffer ByteBuf ByteBufOutputStream ByteBufInputStream]
     [io.netty.channel ChannelInitializer ChannelHandlerContext ChannelInboundHandlerAdapter ChannelFutureListener]
     [io.netty.channel.socket SocketChannel]
-    [io.netty.handler.codec MessageToMessageEncoder MessageToMessageDecoder LengthFieldPrepender LengthFieldBasedFrameDecoder]))
+    [io.netty.handler.codec ByteToMessageCodec MessageToMessageEncoder MessageToMessageDecoder LengthFieldPrepender LengthFieldBasedFrameDecoder]))
 
 ;;; ChannelHandlers
 
@@ -26,31 +26,15 @@
         (-> ctx Netty/pipeline (.remove this)))
       (isSharable [] true))))
 
-(defn- connection-header-handler
-  ;; TODO: determine if this should be memoized
-  "Creates a handler which sends the connection header once to the channel
-   upon channel activation, and then removes itself.  Shareable."
-  [connection-header]
-  (proxy [ChannelInboundHandlerAdapter] []
-    (channelActive [^ChannelHandlerContext ctx]
-      (log/debug "Writing connection header to channel" connection-header (.channel ctx))
-      (let [msg (msg/create msg/ConnectionHeader connection-header)
-            buf (.. ctx alloc (buffer (msg/size msg)))]
-        (msg/write! msg (ByteBufOutputStream. buf))
-        (.writeAndFlush ctx buf)
-        (.. ctx (pipeline) (remove this))))
-    (isSharable [] true)))
-
+(def length-encoder
+  "A ChannelOutboundHandler which takes a frame and prefixes a length integer
+   to it.  Shareable."
+  (LengthFieldPrepender. 4))
 
 (defn length-decoder []
   "Returns a ChannelInboundHandler which decodes a prefixed length integer and
    returns the corresponding frame of the correct length."
   (LengthFieldBasedFrameDecoder. Integer/MAX_VALUE 0 4 0 4))
-
-(def length-encoder
-  "A ChannelOutboundHandler which takes a frame and prefixes a length integer
-   to it.  Shareable."
-  (LengthFieldPrepender. 4))
 
 (def ^:private message-encoder
   "A ChannelOutboundHandler that takes a message or sequence of messages
@@ -77,6 +61,24 @@
         (conj out [header])))
     (isSharable [] true)))
 
+#_(def rpc-codec
+  "A ByteToMessageCodec that encodes requests into the proper byte format,
+   and sends it.  Requests may include a promise which will be filled when
+   the response returns."
+  []
+  (let [codec
+        (proxy )
+        ]
+    
+    )
+
+  )
+
+#_(deftype RpcCodec [promises]
+  ByteToMessageCodec
+  (encode [this ctx msg ^ByteBuf buf])
+
+  )
 
 (defn channel-initializer []
   (proxy [ChannelInitializer] []

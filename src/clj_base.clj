@@ -1,4 +1,4 @@
-(ns danburkert.hbase-client)
+(ns clj-base)
 
 (defprotocol Closeable
   (close [this] "Release resources and cleanup"))
@@ -19,3 +19,5 @@
 
 (defprotocol MasterService
   (master-running? [this] "Retrieve the master's status"))
+
+(defrecord Cell [rowkey family qualifier timestamp value])

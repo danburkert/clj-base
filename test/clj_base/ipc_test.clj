@@ -1,4 +1,4 @@
-(ns danburkert.hbase-client.ipc-test
-  (:require [danburkert.hbase-client.ipc :refer :all]
+(ns clj-base.ipc-test
+  (:require [clj-base.ipc :refer :all]
             [clojure.test :refer :all])
   (:import [io.netty.channel.embedded EmbeddedChannel]))

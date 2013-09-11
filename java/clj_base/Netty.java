@@ -1,4 +1,4 @@
-package com.danburkert.hbase_client;
+package clj_base;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBufAllocator;

@@ -1,6 +1,6 @@
-(ns danburkert.hbase-client.zookeeper
-  (:require [danburkert.hbase-client :refer :all]
-            [danburkert.hbase-client.messages :as msg]
+(ns clj-base.zookeeper
+  (:require [clj-base :refer :all]
+            [clj-base.messages :as msg]
             [zookeeper :as zk]
             [clojure.tools.logging :as log])
   (:import [java.io ByteArrayInputStream]

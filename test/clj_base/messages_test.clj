@@ -1,5 +1,5 @@
-(ns danburkert.hbase-client.messages-test
-  (:require [danburkert.hbase-client.messages :refer :all]
+(ns clj-base.messages-test
+  (:require [clj-base.messages :refer :all]
             [clojure.test :refer :all])
   (:import [java.io ByteArrayOutputStream ByteArrayInputStream]))
 

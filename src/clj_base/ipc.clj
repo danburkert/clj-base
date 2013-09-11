@@ -1,10 +1,10 @@
-(ns danburkert.hbase-client.ipc
-  (:require [danburkert.hbase-client :refer :all]
-            [danburkert.hbase-client.messages :as msg]
-            [clojure.tools.logging :as log]
-            [danburkert.hbase-client.ipc.handlers :as handlers])
+(ns clj-base.ipc
+  (:require [clj-base :refer :all]
+            [clj-base.ipc.handlers :as handlers]
+            [clj-base.messages :as msg]
+            [clojure.tools.logging :as log])
   (:import
-    [com.danburkert.hbase_client Netty]
+    [clj_base Netty]
     [io.netty.bootstrap Bootstrap]
     [io.netty.buffer ByteBuf ByteBufOutputStream ByteBufInputStream]
     [io.netty.channel EventLoopGroup ChannelHandler ChannelHandlerContext ChannelInboundHandlerAdapter ChannelInitializer ChannelFutureListener]

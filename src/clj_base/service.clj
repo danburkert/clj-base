@@ -1,7 +1,7 @@
-(ns danburkert.hbase-client.service
-  (:require [danburkert.hbase-client :refer :all]
-            [danburkert.hbase-client.messages :as msg]
-            [danburkert.hbase-client.ipc :as ipc]))
+(ns clj-base.service
+  (:require [clj-base :refer :all]
+            [clj-base.messages :as msg]
+            [clj-base.ipc :as ipc]))
 
 (defrecord Master [bootstrap zk channels opts]
   MasterService

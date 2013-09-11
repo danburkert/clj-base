@@ -1,13 +1,12 @@
-# hbase-client
+# clj-base
 
-An HBase client that (hopefully) doesn't suck
+A functional HBase client
 
 ## Goals
 
-1.  learn HBase internals
-2.  thread safe
-3.  asynchronous
-4.  lazy
+1.  thread safe
+2.  asynchronous
+3.  lazy
 
 ## Progress
 
@@ -17,4 +16,4 @@ Not ready
 
 Copyright © 2013 Dan Burkert
 
-Distributed under the Eclipse Public License, the same as Clojure.
+Distributed under the Apache License, Version 2.0
