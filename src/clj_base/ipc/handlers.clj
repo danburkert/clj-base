@@ -10,7 +10,6 @@
     [io.netty.handler.codec ByteToMessageCodec MessageToMessageEncoder MessageToMessageDecoder LengthFieldPrepender LengthFieldBasedFrameDecoder]))
 
 ;;; ChannelHandlers
-
 (def preamble-handler
   "A ChannelHandler which sends the HBase connection preamble once to the
    channel upon channel activation, and then removes itself.  Shareable."
@@ -28,7 +27,7 @@
 
 (def length-encoder
   "A ChannelOutboundHandler which takes a frame and prefixes a length integer
-   to it.  Shareable."
+   to it. Shareable."
   (LengthFieldPrepender. 4))
 
 (defn length-decoder []
@@ -43,7 +42,7 @@
   (proxy [MessageToMessageEncoder] []
     (encode [ctx msgs out]
       (let [msgs (if (seq? msgs) msgs (list msgs))
-            size (reduce (comp + msg/delimited-size) msgs)
+            size (reduce (fn [acc msg] (+ acc (count msg))) 0 msgs)
             buf (.. ctx alloc (buffer size))
             os (ByteBufOutputStream. buf)]
         (doseq [msg msgs] (msg/write-delimited! msg os))
@@ -61,24 +60,67 @@
         (conj out [header])))
     (isSharable [] true)))
 
-#_(def rpc-codec
-  "A ByteToMessageCodec that encodes requests into the proper byte format,
-   and sends it.  Requests may include a promise which will be filled when
-   the response returns."
-  []
-  (let [codec
-        (proxy )
-        ]
-    
-    )
+(gen-class :name RpcCodec
+           :extends io.netty.handler.codec.ByteToMessageCodec
+           :init init
+           :constructors {[] []}
+           :state state
+           :main false
+           :prefix "rpc-codec-")
 
-  )
+(defn rpc-codec-init []
+  [[] (atom {:counter -1
+             :requests {}})])
 
-#_(deftype RpcCodec [promises]
-  ByteToMessageCodec
-  (encode [this ctx msg ^ByteBuf buf])
+(defn rpc-codec-encode
+  "Takes a request map, and serializes it to the channel.  The request map may
+   contain the following keys:
+    :method -> (required) the RPC method being called
+    :request -> (optional) the request message
+    :cells -> (optional) a sequence of Cells to be sent with the request
+    :promise -> (optional) a promise that the response will be delivered to"
 
-  )
+  [this ctx msg buf]
+  (let [id (:counter (swap! (.state this) update-in [:counter] inc))
+        header (msg/create msg/RequestHeader
+                           (cond-> {:call-id id
+                                    :method-name (msg/to-java-name (:method msg))}
+                             (contains? msg :request) (assoc :request-param true)
+                             (contains? msg :cells) (assoc :cell-block-meta
+                                                           (count (:cells msg)))))]
+    (with-open [out (ByteBufOutputStream. buf)]
+      (msg/write-delimited! header out)
+      (if-let [request (:request msg)]
+        (msg/write-delimited! request out))
+      #_(if-let [cells (:cells msg)]
+        (msg/write-delimited! cells out))
+      (if-let [promise (:promise msg)]
+        (swap! (.state this) assoc-in [:requests id] {:promise promise
+                                                      :response-type (msg/response-type (:method msg))})))))
+
+(defn rpc-codec-decode
+  "Takes a serialized response, deserializes it, and delivers it to the
+   associated future, if it exists.  The delivered response is a map containing
+   the following:
+    :response -> (optional) the response message
+    :exeption -> (optional) the exception message, if the request triggered an exception
+    :cells -> (optional) sequence of cells returned with the response"
+  [this buf out]
+  (with-open [in (ByteBufInputStream. buf)]
+    (if-let [header (msg/read-delimited! msg/ResponseHeader in)]
+      (if-let [id (:call-id header)]
+        (if-let [{:keys [promise response-type]} (get-in @(.state this) [:requests id])]
+          (do
+            (swap! (.state this) dissoc :requests id)
+            (deliver promise
+                     (cond-> (if (contains? header :exception)
+                               {:exception (:exception header)}
+                               {:response (msg/read-delimited! response-type in)})
+                       (contains? header :cell-block-meta)
+                       (assoc :cells (.readSlice buf (:length (:cell-block-meta header)))))))
+          (log/error "No request registered for response" header))
+        (log/error "Response header does not contain id field" header))
+      (log/error "Unable to parse header from response"))))
 
 (defn channel-initializer []
   (proxy [ChannelInitializer] []

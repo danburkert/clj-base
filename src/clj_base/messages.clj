@@ -10,7 +10,7 @@
   "Takes the name of rpc and returns the type of the response message"
   identity)
 
-(defn- to-java-name [k]
+(defn to-java-name [k]
   (when k
     (s/replace-first
       (s/join
@@ -30,57 +30,43 @@
 
     class   (symbol) Class containing the rpc.  Will automatically append
             'Protos' to the name
-    rpc     (keyword) Name of the rpc.  Determines the name of the request and
+    rpc     (keyword) Name of the rpc.  Determines the type of the request and
             response messages unless otherwise specified (converts a
-            clojure-style-name to a JavaStyleName)
+            clojure-style-name to a JavaStyleName).
 
    Options:
-    :base     Specifies the Request and Response message types of the rpc.
+    :message  Specifies the Request and Response message types of the rpc.
               Will be appended with 'Request' or 'Response'. Use in cases where
-              the request and response types do not match the rpc name, but
-              they have the same common prefix.  Used in preference to the rpc
-              name.
-    :request  Specifies the request message type of the rpc.  Overrides the rpc
-               and base names.
-    :reponse  Specifies the response message type of the rpc.  Overrides the rpc
-              and base names.
-    :def-request?   Whether to define the request message type (default true).
-    :def-response?  Whether to define the response message type (default true)."
-  [class rpc & {:keys [base request response def-request? def-response?]
-                :or {def-request? true def-response? true}}]
+              the request and response types do not match the rpc name.
+    :def-message?  Whether to define the request message type (default true)."
+  [class rpc & {:keys [message def-message?] :or {def-message? true}}]
   {:pre [class rpc]}
-  (let [req-msg (cond
-                  request (to-java-name request)
-                  base (symbol (str base "Request"))
-                  rpc (symbol (str (to-java-name rpc) "Request")))
-        res-msg (cond
-                  response (to-java-name response)
-                  base (symbol (str base "Response"))
-                  rpc (symbol (str (to-java-name rpc) "Response")))]
+  (let [base-msg (or message (to-java-name rpc))
+        req-msg (symbol (str base-msg "Request"))
+        res-msg (symbol (str base-msg "Response"))]
     `(do
-       ~(if def-request?
-          `(def-message ~class ~req-msg)
-          `(declare ~req-msg))
-       ~(if def-response?
-          `(def-message ~class ~res-msg)
-          `(declare ~res-msg))
+       ~@(if def-message?
+           `((def-message ~class ~req-msg)
+             (def-message ~class ~res-msg))
+           `((declare ~req-msg)
+             (declare ~res-msg)))
        (defmethod response-type ~rpc [~'_] ~res-msg))))
 
 (defmacro def-messages
   "Declare protobuf messages from a class.  Uses def-message."
   [class & msgs]
-  (concat `(do)
-          (map (fn [[name]]
-                 `(def-message ~class ~name))
-               msgs)))
+  `(do
+     ~@(map (fn [[name]]
+              `(def-message ~class ~name))
+            msgs)))
 
 (defmacro def-rpcs
   "Declares HBase RPCs from a class.  Uses def-rpc."
   [class & rpcs]
-  (concat `(do)
-          (map (fn [args]
-                 `(def-rpc ~class ~@args))
-               rpcs)))
+  `(do
+     ~@(map (fn [args]
+            `(def-rpc ~class ~@args))
+          rpcs)))
 
 ;; AccessControl
 (def-messages AccessControl
@@ -107,9 +93,9 @@
   [:split-region]
   [:compact-region]
   [:merge-regions]
-  [:replicate-wal-entry :base ReplicateWALEntry]
-  [:replay :base Multi :def-request? false :def-response? false]
-  [:roll-wal-writer :base RollWALWriter]
+  [:replicate-wal-entry :message ReplicateWALEntry]
+  [:replay :message Multi :def-message? false]
+  [:roll-wal-writer :message RollWALWriter]
   [:get-server-info]
   [:stop-server]
   [:update-favored-nodes])
@@ -119,13 +105,13 @@
 
 ;; Aggregate
 (def-rpcs Aggregate
-  [:get-max :base Aggregate]
-  [:get-min :base Aggregate :def-request? false :def-response? false]
-  [:get-sum :base Aggregate :def-request? false :def-response? false]
-  [:get-row-num :base Aggregate :def-request? false :def-response? false]
-  [:get-avg :base Aggregate :def-request? false :def-response? false]
-  [:get-std :base Aggregate :def-request? false :def-response? false]
-  [:get-median :base Aggregate :def-request? false :def-response? false])
+  [:get-max :message Aggregate]
+  [:get-min :message Aggregate :def-message? false]
+  [:get-sum :message Aggregate :def-message? false]
+  [:get-row-num :message Aggregate :def-message? false]
+  [:get-avg :message Aggregate :def-message? false]
+  [:get-std :message Aggregate :def-message? false]
+  [:get-median :message Aggregate :def-message? false])
 
 ;; Authentication
 (def-messages Authentication
@@ -157,7 +143,7 @@
   [:multi-get]
   [:mutate]
   [:scan]
-  [:bulk-load-hfile :base BulkLoadHFile :def-request? false :def-response? false]
+  [:bulk-load-hfile :message BulkLoadHFile :def-message? false]
   [:coprocessor-service]
   [:multi])
 
@@ -283,14 +269,14 @@
   [:run-catalog-scan]
   [:enable-catalog-janitor]
   [:catalog-janitor-enabled?]
-  [:exec-master-service :base CoprocessorService :def-request? false :def-response? false]
+  [:exec-master-service :message CoprocessorService :def-message? false]
   [:snapshot]
   [:get-completed-snapshots]
   [:delete-snapshot]
   [:snapshot-done?]
   [:restore-snapshot]
   [:restore-snapshot-done?]
-  #_[:master-running? :def-request? false :def-response? false]
+  #_[:master-running? :def-message? false]
   [:modify-namespace]
   [:create-namespace]
   [:delete-namespace]
@@ -305,7 +291,7 @@
   [:get-table-descriptors]
   [:get-table-names]
   [:get-cluster-status]
-  #_[:master-running? :def-request? false :def-response? false])
+  #_[:master-running? :def-message? false])
 
 ;; MultiRowMutation
 (def-rpc MultiRowMutation :mutate-rows)
@@ -319,7 +305,7 @@
 (def-rpcs RegionServerStatus
   [:region-server-startup]
   [:region-server-report]
-  [:report-rs-fatal-error :base ReportRSFatalError]
+  [:report-rs-fatal-error :message ReportRSFatalError]
   [:get-last-flushed-sequence-id])
 
 ;; RowProcessor
@@ -338,7 +324,7 @@
 (def-message SecureBulkLoad DelegationToken)
 (def-rpcs SecureBulkLoad
   [:prepare-bulk-load]
-  [:secure-bulk-load-hfiles :base SecureBulkLoadHFiles]
+  [:secure-bulk-load-hfiles :message SecureBulkLoadHFiles]
   [:cleanup-bulk-load])
 
 ;; Tracing

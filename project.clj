@@ -12,6 +12,7 @@
                  [org.clojure/test.generative "0.5.0"]
                  [org.clojure/data.generators "0.1.2"]]
   :java-source-paths ["java"]
+  :aot :all
   ;; :global-vars  {*warn-on-reflection* true}
   :aliases {"generative" ^{:doc "Run test.generative specs"}
             ["run" "-m" "clojure.test.generative.runner" "test"]
