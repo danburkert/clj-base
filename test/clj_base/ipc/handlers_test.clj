@@ -82,61 +82,50 @@
       (is (= -1 (:counter @state)))
       (is (empty? (:requests @state))))))
 
-(deftest rpc-codec-encode-test
+(defn- test-rpc-codec
+  "Test the request / response cycle of RpcCodec"
+  [method request response]
   (let [codec (RpcCodec.)
         state (.state codec)
         ch (mock-channel codec)
-        p (promise)]
-    (testing "RpcCodec encode header-only message with expected response"
-      (.writeOutbound ch (to-array [{:method :master-running? :promise p}]))
-      (is (= 0 (:counter @state)))
-      (is (= p (get-in @state [:requests 0 :promise])))
-      (is (= msg/IsMasterRunningResponse (get-in @state [:requests 0 :response-type])))
-      (is (= (msg/create msg/RequestHeader {:call-id 0 :method-name "IsMasterRunning"})
-             (msg/read-delimited! msg/RequestHeader (ByteBufInputStream. (.readOutbound ch)))))
-      (is (nil? (.readOutbound ch))))
-    (testing "RpcCodec encode header-only message without expected response"
-      (.writeOutbound ch (to-array [{:method :master-running?}]))
-      (is (= 1 (:counter @state)))
-      (is (nil? (get-in @state [:requests 1 :promise])))
-      (is (nil? (get-in @state [:requests 1 :response-type])))
-      (is (= (msg/create msg/RequestHeader {:call-id 1 :method-name "IsMasterRunning"})
-             (msg/read-delimited! msg/RequestHeader (ByteBufInputStream. (.readOutbound ch)))))
-      (is (nil? (.readOutbound ch))))
-    (testing "RpcCodec encode request message with expected response"
+        id (inc (:counter @state))
+        p (promise)
+        request-type (msg/request-type method)
+        response-type (msg/response-type method)
+        method-name (msg/method-name method)
+        ]
+    (testing (str "RpcCodec " method " request")
+      (is (nil? (.readOutbound ch)) "Outbound channel should be empty after initialization")
       (.writeOutbound ch (to-array [{:method :master-running?
                                      :promise p
-                                     :request (msg/create msg/IsMasterRunningRequest {})}]))
-      (is (= 2 (:counter @state)))
-      (is (= p (get-in @state [:requests 2 :promise])))
-      (is (= msg/IsMasterRunningResponse (get-in @state [:requests 2 :response-type])))
+                                     :request request}]))
+      (is (= id (:counter @state)) "call-id counter should be incremented after sending a message")
+      (is (= p (get-in @state [:requests 0 :promise])) "codec should keep reference to promise")
+      (is (= response-type (get-in @state [:requests 0 :response-type]))
+          "codec should store rpc method return type")
       (let [buf (.readOutbound ch)
             input (ByteBufInputStream. buf)]
-        (is (= (msg/create msg/RequestHeader {:call-id 2 :method-name "IsMasterRunning" :request-param true})
-               (msg/read-delimited! msg/RequestHeader input)))
-        (is (= (msg/create msg/IsMasterRunningRequest {})
-               (msg/read-delimited! msg/IsMasterRunningRequest input))))
-      (is (nil? (.readOutbound ch))))
-    (testing "RpcCodec encode request message without expected response"
-      (.writeOutbound ch (to-array [{:method :master-running?
-                                     :request (msg/create msg/IsMasterRunningRequest {})}]))
-      (is (= 3 (:counter @state)))
-      (is (nil? (get-in @state [:requests 3 :promise])))
-      (is (nil? (get-in @state [:requests 3 :response-type])))
-      (let [buf (.readOutbound ch)
-            input (ByteBufInputStream. buf)]
-        (is (= (msg/create msg/RequestHeader {:call-id 3 :method-name "IsMasterRunning" :request-param true})
-               (msg/read-delimited! msg/RequestHeader input)))
-        (is (= (msg/create msg/IsMasterRunningRequest {})
-               (msg/read-delimited! msg/IsMasterRunningRequest input))))
-      (is (nil? (.readOutbound ch))))))
+        (is (= (msg/create msg/RequestHeader {:call-id id :method-name method-name :request-param true})
+               (msg/read-delimited! msg/RequestHeader input))
+            "Header should be serialized to output")
+        (is (= request (msg/read-delimited! request-type input))
+            "Request should be serialized to output"))
+      (is (nil? (.readOutbound ch)) "Outbound channel should be empty after reading only write"))
+    (testing (str "RpcCodec " method " response")
+      (is (nil? (.readInbound ch)) "Inbound channel should be empty after initialization")
+      (let [header (msg/create msg/ResponseHeader {:call-id id})
+            buf (to-buf header response)]
+        (.writeInbound ch (to-array [buf]))
+        (is (= {:response response} @p) "Promise should be fulfilled with response message")
+        (is (empty? (:requests @state)) "Request should be removed from state after fulfilling promise")
+        (is (nil? (.readInbound ch)) "Inbound channel should be empty")))))
 
-(deftest rpc-codec-decode
+(deftest is-master-running-rpc-test
+  (test-rpc-codec :master-running?
+                  (msg/create msg/IsMasterRunningRequest {})
+                  (msg/create msg/IsMasterRunningResponse {:is-master-running true})))
 
-  )
 
 #_(run-tests)
 
 #_(runner/run 2 500 #'length-decoder-spec)
-
-#_(run-tests)

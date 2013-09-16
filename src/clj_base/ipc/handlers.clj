@@ -76,27 +76,28 @@
   "Takes a request map, and serializes it to the channel.  The request map may
    contain the following keys:
     :method -> (required) the RPC method being called
-    :request -> (optional) the request message
+    :request -> (required) the request message
     :cells -> (optional) a sequence of Cells to be sent with the request
-    :promise -> (optional) a promise that the response will be delivered to"
+    :promise -> (required) a promise that the rpc response will be delivered to"
 
-  [this ctx msg buf]
+  [this ctx {:keys [method request cells promise]} buf]
+  {:pre [(keyword? method)
+         (msg/valid-msg? request)
+         (or (nil? cells) (seq cells))
+         (not (realized? promise))]}
   (let [id (:counter (swap! (.state this) update-in [:counter] inc))
         header (msg/create msg/RequestHeader
                            (cond-> {:call-id id
-                                    :method-name (msg/to-java-name (:method msg))}
-                             (contains? msg :request) (assoc :request-param true)
-                             (contains? msg :cells) (assoc :cell-block-meta
-                                                           (count (:cells msg)))))]
+                                    :method-name (msg/method-name method)
+                                    :request-param true}
+                             cells (assoc :cell-block-meta (count cells))))
+        response (msg/response-type method)]
     (with-open [out (ByteBufOutputStream. buf)]
+      (swap! (.state this) assoc-in [:requests id] {:promise promise
+                                                    :response-type response})
       (msg/write-delimited! header out)
-      (if-let [request (:request msg)]
-        (msg/write-delimited! request out))
-      #_(if-let [cells (:cells msg)]
-        (msg/write-delimited! cells out))
-      (if-let [promise (:promise msg)]
-        (swap! (.state this) assoc-in [:requests id] {:promise promise
-                                                      :response-type (msg/response-type (:method msg))})))))
+      (msg/write-delimited! request out)
+      (when cells (msg/write-delimited! cells out)))))
 
 (defn rpc-codec-decode
   "Takes a serialized response, deserializes it, and delivers it to the
@@ -105,7 +106,7 @@
     :response -> (optional) the response message
     :exeption -> (optional) the exception message, if the request triggered an exception
     :cells -> (optional) sequence of cells returned with the response"
-  [this buf out]
+  [this ctx buf out]
   (with-open [in (ByteBufInputStream. buf)]
     (if-let [header (msg/read-delimited! msg/ResponseHeader in)]
       (if-let [id (:call-id header)]

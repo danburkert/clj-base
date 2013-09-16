@@ -4,8 +4,8 @@
   (:import [java.io ByteArrayOutputStream ByteArrayInputStream]))
 
 (def msg (create RequestHeader {:call-id 0
-                                 :method-name "MethodName"
-                                 :request-param false}))
+                                :method-name "IsMasterRunning"
+                                :request-param true}))
 
 (def serialized-bytes
   (let [out (java.io.ByteArrayOutputStream.)]

@@ -5,18 +5,24 @@
            [java.io InputStream OutputStream])
   (:refer-clojure :exclude [read]))
 
-(defmulti
-  response-type
-  "Takes the name of rpc and returns the type of the response message"
+(defmulti request-type
+  "Takes the rpc method keyword and returns the type of the request message"
   identity)
 
-(defn to-java-name [k]
-  (when k
-    (s/replace-first
-      (s/join
-        (map s/capitalize (-> k name (s/split #"-"))))
-      #"(.*)\?$"
-      "Is$1")))
+(defmulti response-type
+  "Takes the rpc method keyword and returns the type of the response message"
+  identity)
+
+(defmulti method-name
+  "Takes the rpc method keyword and returns the name of the rpc method"
+  identity)
+
+(defn- java-name [k]
+  (s/replace-first
+    (s/join
+      (map s/capitalize (-> k name (s/split #"-"))))
+    #"(.*)\?$"
+    "Is$1"))
 
 (defmacro def-message
   "Declare a protobuf message type"
@@ -30,26 +36,32 @@
 
     class   (symbol) Class containing the rpc.  Will automatically append
             'Protos' to the name
-    rpc     (keyword) Name of the rpc.  Determines the type of the request and
-            response messages unless otherwise specified (converts a
+    rpc     (keyword) Name of the rpc method.  Determines the type of the request
+            and response messages unless otherwise specified (converts a
             clojure-style-name to a JavaStyleName).
 
    Options:
+    :method   Overrides the method name of the rpc.  Use in cases where
+              converting the rpc name to java style does not match the method name.
     :message  Specifies the Request and Response message types of the rpc.
               Will be appended with 'Request' or 'Response'. Use in cases where
-              the request and response types do not match the rpc name.
+              the request and response types do not match the rpc method name.
     :def-message?  Whether to define the request message type (default true)."
-  [class rpc & {:keys [message def-message?] :or {def-message? true}}]
-  {:pre [class rpc]}
-  (let [base-msg (or message (to-java-name rpc))
-        req-msg (symbol (str base-msg "Request"))
-        res-msg (symbol (str base-msg "Response"))]
+  [class rpc & {:keys [method message def-message?] :or {method (java-name rpc)
+                                                         def-message? true}}]
+  {:pre [class rpc
+         (string? method)
+         ((some-fn true? false?) def-message?)]}
+  (let [req-msg (symbol (str (or message method) "Request"))
+        res-msg (symbol (str (or message method) "Response"))]
     `(do
        ~@(if def-message?
            `((def-message ~class ~req-msg)
              (def-message ~class ~res-msg))
            `((declare ~req-msg)
              (declare ~res-msg)))
+       (defmethod method-name ~rpc [~'_] ~method)
+       (defmethod request-type ~rpc [~'_] ~req-msg)
        (defmethod response-type ~rpc [~'_] ~res-msg))))
 
 (defmacro def-messages
@@ -93,9 +105,9 @@
   [:split-region]
   [:compact-region]
   [:merge-regions]
-  [:replicate-wal-entry :message ReplicateWALEntry]
+  [:replicate-wal-entry :method "ReplicateWALEntry"]
   [:replay :message Multi :def-message? false]
-  [:roll-wal-writer :message RollWALWriter]
+  [:roll-wal-writer :method "RollWALWriter"]
   [:get-server-info]
   [:stop-server]
   [:update-favored-nodes])
@@ -143,7 +155,7 @@
   [:multi-get]
   [:mutate]
   [:scan]
-  [:bulk-load-hfile :message BulkLoadHFile :def-message? false]
+  [:bulk-load-hfile :method "BulkLoadHFile"]
   [:coprocessor-service]
   [:multi])
 
@@ -305,7 +317,7 @@
 (def-rpcs RegionServerStatus
   [:region-server-startup]
   [:region-server-report]
-  [:report-rs-fatal-error :message ReportRSFatalError]
+  [:report-rs-fatal-error :method "ReportRSFatalError"]
   [:get-last-flushed-sequence-id])
 
 ;; RowProcessor
@@ -324,7 +336,7 @@
 (def-message SecureBulkLoad DelegationToken)
 (def-rpcs SecureBulkLoad
   [:prepare-bulk-load]
-  [:secure-bulk-load-hfiles :message SecureBulkLoadHFiles]
+  [:secure-bulk-load-hfiles :method "SecureBulkLoadHFiles"]
   [:cleanup-bulk-load])
 
 ;; Tracing
@@ -388,6 +400,12 @@
   "Read a delimited message of the given type from the input stream"
   [type is]
   (PersistentProtocolBufferMap/parseDelimitedFrom type is))
+
+(defn valid-msg?
+  "Validates that a message is a PersistentProtocolBufferMap and it will
+   serialize without errors"
+  [msg]
+  (size msg))
 
 (comment
 
