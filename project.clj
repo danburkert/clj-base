@@ -4,7 +4,7 @@
   :license {:name "Apache License, Version 2.0"
             :url "https://www.apache.org/licenses/LICENSE-2.0.html"}
   :dependencies [[org.clojure/clojure "1.5.1"]
-                 [org.apache.hbase/hbase-protocol "0.96.0"]
+                 [org.apache.hbase/hbase-protocol "0.97.0-SNAPSHOT"]
                  [io.netty/netty-all "4.0.8.Final"]
                  [org.flatland/protobuf "0.7.3-SNAPSHOT"]
                  [zookeeper-clj "0.9.1"]
